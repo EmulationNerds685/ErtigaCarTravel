@@ -10,6 +10,10 @@ const scheduleSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  date: {
+    type: Date,
+    required: true,
+  },
   time: {
     type: String,
     required: true,
@@ -27,14 +31,13 @@ const scheduleSchema = new mongoose.Schema({
     default: 6,
   },
   price: {
-  front: { type: Number, required: true },
-  rear: { type: Number, required: true }
-},
-
+    front: { type: Number, required: true },
+    rear: { type: Number, required: true }
+  },
   seatMap: {
     type: [
       {
-        seatNumber: String,     
+        seatNumber: String,
         isBooked: {
           type: Boolean,
           default: false,

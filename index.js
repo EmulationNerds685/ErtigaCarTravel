@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import scheduleRoutes from './routes/schedules.js';
 import bookingRoutes from './routes/bookings.js';
+import scheduleGenerate from './routes/scheduleRoutes.js';
 
 dotenv.config();
 const app = express();
@@ -14,6 +15,7 @@ app.use(express.json());
 
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/scheduleRoutes', scheduleGenerate);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

@@ -4,10 +4,19 @@ import Schedule from '../models/Schedule.js';
 
 const router = express.Router();
 
-// GET bookings for a schedule
+// GET bookings for a schedule and date (expects `?date=YYYY-MM-DD`)
 router.get('/:scheduleId', async (req, res) => {
   try {
-    const bookings = await Booking.find({ scheduleId: req.params.scheduleId });
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: 'Missing date parameter' });
+    }
+
+    const bookings = await Booking.find({
+      scheduleId: req.params.scheduleId,
+      date: date
+    });
+
     res.json(bookings);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -22,46 +31,48 @@ router.put('/cancel/:id', async (req, res) => {
       return res.status(404).json({ message: 'Booking not found or already cancelled' });
     }
 
-    // Mark booking as cancelled
     booking.status = 'cancelled';
     await booking.save();
 
-    // Restore seat availability in schedule
     const schedule = await Schedule.findById(booking.scheduleId);
     if (!schedule) {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
-    // Find the seat in seatMap and mark as available
-    const seat = schedule.seatMap.find(
-      (s) =>
-        s.seatNumber === booking.seatNumber &&
-        s.seatType === booking.seatType
-    );
-    if (seat) {
-      seat.isBooked = false;
-      await schedule.save();
-    } else {
-      // Seat not found (you may want to log this)
+    // Restore seats
+    for (const passenger of booking.passengers) {
+      const seat = schedule.seatMap.find(
+        (s) =>
+          s.seatNumber === passenger.seatNumber &&
+          s.seatType === passenger.seatType
+      );
+      if (seat) {
+        seat.isBooked = false;
+        schedule.seatsAvailable += 1;
+      }
     }
 
-    res.json({ message: 'Booking cancelled and seat restored' });
+    await schedule.save();
+
+    res.json({ message: 'Booking cancelled and seat(s) restored' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 // POST /api/bookings
-// Expects: { name, phone, email, scheduleId, passengers: [{name, age, seatType, seatNumber}] }
-
+// Expects: { name, phone, email, scheduleId, date, passengers: [...] }
 router.post('/', async (req, res) => {
-  const { scheduleId, name, phone, email, passengers } = req.body;
+  const { scheduleId, name, phone, email, date, passengers } = req.body;
+
+  if (!date) {
+    return res.status(400).json({ message: 'Missing booking date' });
+  }
 
   try {
     const schedule = await Schedule.findById(scheduleId);
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
 
-    // Validate seats
     for (const passenger of passengers) {
       const seat = schedule.seatMap.find(
         (s) =>
@@ -78,14 +89,13 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // All seats are valid and available – mark as booked
+    // Update seatMap
     const passengerDocs = passengers.map((p) => {
       const seat = schedule.seatMap.find(
         (s) => s.seatNumber === p.seatNumber && s.seatType === p.seatType
       );
 
       seat.isBooked = true;
-
       if (schedule.seatsAvailable > 0) {
         schedule.seatsAvailable -= 1;
       }
@@ -104,17 +114,19 @@ router.post('/', async (req, res) => {
       carNumber: schedule.carNumber,
       contactInfo: { name, phone, email },
       passengers: passengerDocs,
-      bookingStatus: 'confirmed'
+      bookingStatus: 'confirmed',
+      date
     });
 
     await booking.save();
     await schedule.save();
 
     res.status(201).json({ message: 'Booking successful', booking });
-    
+
   } catch (err) {
     console.error('Booking error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 export default router;
