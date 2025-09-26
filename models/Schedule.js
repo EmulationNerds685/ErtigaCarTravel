@@ -1,5 +1,5 @@
 // models/Schedule.js
-import mongoose from 'mongoose'
+import mongoose from "mongoose";
 
 const scheduleSchema = new mongoose.Schema({
   from: {
@@ -32,7 +32,7 @@ const scheduleSchema = new mongoose.Schema({
   },
   price: {
     front: { type: Number, required: true },
-    rear: { type: Number, required: true }
+    rear: { type: Number, required: true },
   },
   seatMap: {
     type: [
@@ -44,13 +44,13 @@ const scheduleSchema = new mongoose.Schema({
         },
         seatType: {
           type: String,
-          enum: ['front', 'rear'],
-          default: 'rear',
+          enum: ["front", "rear"],
+          default: "rear",
         },
       },
     ],
     default: [],
   },
-})
+});
 
-export default mongoose.model('Schedule', scheduleSchema)
+export default mongoose.model("Schedule", scheduleSchema);

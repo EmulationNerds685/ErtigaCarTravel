@@ -1,20 +1,21 @@
-import express from 'express';
-import Booking from '../models/Booking.js';
-import Schedule from '../models/Schedule.js';
+import express from "express";
+import Booking from "../models/Booking.js";
+import Schedule from "../models/Schedule.js";
 
 const router = express.Router();
 
-// GET bookings for a schedule and date (expects `?date=YYYY-MM-DD`)
-router.get('/:scheduleId', async (req, res) => {
+router.get("/:scheduleId", async (req, res) => {
+  console.log(req.params);
+  console.log(req.query);
   try {
     const { date } = req.query;
     if (!date) {
-      return res.status(400).json({ message: 'Missing date parameter' });
+      return res.status(400).json({ message: "Missing date parameter" });
     }
 
     const bookings = await Booking.find({
       scheduleId: req.params.scheduleId,
-      date: date
+      date: date,
     });
 
     res.json(bookings);
@@ -23,23 +24,23 @@ router.get('/:scheduleId', async (req, res) => {
   }
 });
 
-// Cancel a booking
-router.put('/cancel/:id', async (req, res) => {
+router.put("/cancel/:id", async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking || booking.status === 'cancelled') {
-      return res.status(404).json({ message: 'Booking not found or already cancelled' });
+    if (!booking || booking.bookingStatus === "cancelled") {
+      return res
+        .status(404)
+        .json({ message: "Booking not found or already cancelled" });
     }
 
-    booking.status = 'cancelled';
+    booking.bookingStatus = "cancelled";
     await booking.save();
 
     const schedule = await Schedule.findById(booking.scheduleId);
     if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+      return res.status(404).json({ message: "Schedule not found" });
     }
 
-    // Restore seats
     for (const passenger of booking.passengers) {
       const seat = schedule.seatMap.find(
         (s) =>
@@ -54,24 +55,23 @@ router.put('/cancel/:id', async (req, res) => {
 
     await schedule.save();
 
-    res.json({ message: 'Booking cancelled and seat(s) restored' });
+    res.json({ message: "Booking cancelled and seat(s) restored" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// POST /api/bookings
-// Expects: { name, phone, email, scheduleId, date, passengers: [...] }
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   const { scheduleId, name, phone, email, date, passengers } = req.body;
 
   if (!date) {
-    return res.status(400).json({ message: 'Missing booking date' });
+    return res.status(400).json({ message: "Missing booking date" });
   }
 
   try {
     const schedule = await Schedule.findById(scheduleId);
-    if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
+    if (!schedule)
+      return res.status(404).json({ message: "Schedule not found" });
 
     for (const passenger of passengers) {
       const seat = schedule.seatMap.find(
@@ -81,15 +81,18 @@ router.post('/', async (req, res) => {
       );
 
       if (!seat) {
-        return res.status(400).json({ message: `Seat ${passenger.seatNumber} does not exist.` });
+        return res
+          .status(400)
+          .json({ message: `Seat ${passenger.seatNumber} does not exist.` });
       }
 
       if (seat.isBooked) {
-        return res.status(400).json({ message: `Seat ${passenger.seatNumber} is already booked.` });
+        return res
+          .status(400)
+          .json({ message: `Seat ${passenger.seatNumber} is already booked.` });
       }
     }
 
-    // Update seatMap
     const passengerDocs = passengers.map((p) => {
       const seat = schedule.seatMap.find(
         (s) => s.seatNumber === p.seatNumber && s.seatType === p.seatType
@@ -105,7 +108,7 @@ router.post('/', async (req, res) => {
         age: p.age,
         seatType: p.seatType,
         seatNumber: p.seatNumber,
-        price: schedule.price[p.seatType]
+        price: schedule.price[p.seatType],
       };
     });
 
@@ -114,18 +117,78 @@ router.post('/', async (req, res) => {
       carNumber: schedule.carNumber,
       contactInfo: { name, phone, email },
       passengers: passengerDocs,
-      bookingStatus: 'confirmed',
-      date
+      bookingStatus: "confirmed",
+      date,
     });
 
     await booking.save();
     await schedule.save();
 
-    res.status(201).json({ message: 'Booking successful', booking });
-
+    res.status(201).json({ message: "Booking successful", booking });
   } catch (err) {
-    console.error('Booking error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Booking error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+router.get("/:id", async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id).populate(
+      "scheduleId"
+    );
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    res.json(booking);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/:id", async (req, res) => {
+  try {
+    const { contactInfo, passengers } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    if (contactInfo) booking.contactInfo = contactInfo;
+    if (passengers) booking.passengers = passengers;
+
+    await booking.save();
+    res.json({ message: "Booking updated successfully", booking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndDelete(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    const schedule = await Schedule.findById(booking.scheduleId);
+    if (schedule) {
+      for (const p of booking.passengers) {
+        const seat = schedule.seatMap.find(
+          (s) => s.seatNumber === p.seatNumber && s.seatType === p.seatType
+        );
+        if (seat) {
+          seat.isBooked = false;
+          schedule.seatsAvailable += 1;
+        }
+      }
+      await schedule.save();
+    }
+
+    res.json({ message: "Booking deleted and seats restored" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/", async (req, res) => {
+  try {
+    const bookings = await Booking.find().populate("scheduleId");
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
