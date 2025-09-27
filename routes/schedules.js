@@ -140,4 +140,41 @@ router.get("/:id/available-seats", async (req, res) => {
   }
 });
 
+router.post("/find-by-date", async (req, res) => {
+  try {
+    // 1. Get the date from the request body
+    const { date } = req.body;
+
+    // 2. Validate that a date was provided
+    if (!date) {
+      return res
+        .status(400)
+        .json({ message: "Date is required in the request body." });
+    }
+
+    // 3. Create a date range for the entire day
+    const startDate = new Date(date);
+    startDate.setUTCHours(0, 0, 0, 0); // Start of the day in UTC
+
+    const endDate = new Date(date);
+    endDate.setUTCHours(23, 59, 59, 999); // End of the day in UTC
+
+    // 4. Find all schedules in the database that fall within that day
+    const schedules = await Schedule.find({
+      date: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    });
+
+    // 5. Send the found schedules back to the client
+    res.status(200).json(schedules);
+  } catch (err) {
+    // Handle any server errors
+    res
+      .status(500)
+      .json({ message: "Error fetching schedules by date", error: err.message });
+  }
+});
+
 export default router;
