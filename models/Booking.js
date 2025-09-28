@@ -26,8 +26,13 @@ const bookingSchema = new mongoose.Schema({
   passengers: { type: [passengerSchema], required: true },
   bookingStatus: {
     type: String,
-    enum: ["confirmed", "cancelled"],
-    default: "confirmed",
+    enum: ["pending","confirmed", "cancelled"],
+    default: "pending",
+  },
+    paymentDetails: {
+    orderId: String,
+    paymentId: String,
+    signature: String,
   },
   createdAt: { type: Date, default: Date.now },
 });
